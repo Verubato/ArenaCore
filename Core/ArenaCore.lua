@@ -2706,6 +2706,19 @@ function MFM:Initialize()
     
     -- Hide all frames initially
     self:HideAllFrames()
+
+    -- Register FrameSort events
+    local fs = FrameSortApi and FrameSortApi.v3
+
+    if fs then
+        AC.Debug:Print("|cffFF0000[FRAMESORT DEBUG]|r FrameSort integrated enabled.")
+
+        -- fires when the user changes a FrameSort configuration setting
+        fs.Options:RegisterConfigurationChangedCallback(function() AC:OnFrameSortConfigChanged() end)
+
+        -- fires when FrameSort performs a sort, e.g. when an arena unit spec becomes discovered
+        fs.Sorting:RegisterPostSortCallback(function() AC:OnFrameSortPerformedSort() end)
+    end
     
     -- DEBUG: Master System initialized
     -- print("|cffFFAA00ArenaCore Master:|r Master System initialized - 3 unified frames created")
@@ -8266,6 +8279,30 @@ end
 -- FRAME POSITIONING UTILITIES
 -- ============================================================================
 
+local function FrameSortArenaEnabled()
+    local fs = FrameSortApi and FrameSortApi.v3
+
+    return fs and fs.Options:GetEnabled("EnemyArena")
+end
+
+function AC:OnFrameSortPerformedSort()
+    if not FrameSortArenaEnabled() then
+        return
+    end
+
+    AC.Debug:Print("|cffFF0000[FRAMESORT DEBUG]|r FrameSort performed sort.")
+    MFM:UpdateFramePositions()
+end
+
+function AC:OnFrameSortConfigChanged()
+    if not FrameSortArenaEnabled() then
+        return
+    end
+
+    AC.Debug:Print("|cffFF0000[FRAMESORT DEBUG]|r FrameSort config changed.")
+    MFM:UpdateFramePositions()
+end
+
 function MFM:UpdateFramePositions()
     -- CRITICAL: Don't reposition frames while user is dragging them!
     if AC.isDragging then
@@ -8329,7 +8366,35 @@ function MFM:UpdateFramePositions()
         -- SetPoint using BOTTOMLEFT so vertical is positive upward from bottom
         AC.ArenaFramesAnchor:SetPoint("BOTTOMLEFT", UIParent, "BOTTOMLEFT", horizontal, vertical)
     end
-    
+
+    -- if FrameSort is enabled, retrieve their order
+    local fs = FrameSortApi and FrameSortApi.v3
+
+    if fs and FrameSortArenaEnabled() then
+        -- retrieve a sorted array of unit tokens
+        local ordered = fs.Sorting:GetEnemyUnits()
+        -- key = unit, value = sorted index
+        local unitsToIndex = {}
+
+        AC.Debug:Print(string.format("|cffFF0000[FRAMESORT DEBUG]|r Retrieved %d ordered arena units from FrameSort.", #ordered))
+
+        for i, unit in ipairs(ordered) do
+            unitsToIndex[unit] = i
+        end
+
+        -- sort our frames array
+        table.sort(self.frames, function(left, right)
+            local leftIndex = unitsToIndex[left.unit]
+            local rightIndex = unitsToIndex[right.unit]
+
+            if leftIndex and rightIndex then
+                return leftIndex < rightIndex
+            end
+
+            return leftIndex and true or false
+        end)
+    end
+
     -- Position frames relative to anchor
     for i = 1, MAX_ARENA_ENEMIES do
         local frame = self.frames[i]
