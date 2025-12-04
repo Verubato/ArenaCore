@@ -8370,6 +8370,13 @@ function MFM:UpdateFramePositions()
     -- if FrameSort is enabled, retrieve their order
     local fs = FrameSortApi and FrameSortApi.v3
 
+    -- make a copy of our frames array that we can sort
+    local frames = {}
+
+    for _, f in ipairs(self.frames) do
+        frames[#frames + 1] = f
+    end
+
     if fs and FrameSortArenaEnabled() then
         -- retrieve a sorted array of unit tokens
         local ordered = fs.Sorting:GetEnemyUnits()
@@ -8383,7 +8390,7 @@ function MFM:UpdateFramePositions()
         end
 
         -- sort our frames array
-        table.sort(self.frames, function(left, right)
+        table.sort(frames, function(left, right)
             local leftIndex = unitsToIndex[left.unit]
             local rightIndex = unitsToIndex[right.unit]
 
@@ -8397,7 +8404,7 @@ function MFM:UpdateFramePositions()
 
     -- Position frames relative to anchor
     for i = 1, MAX_ARENA_ENEMIES do
-        local frame = self.frames[i]
+        local frame = frames[i]
         if frame then
             frame:ClearAllPoints()
             
